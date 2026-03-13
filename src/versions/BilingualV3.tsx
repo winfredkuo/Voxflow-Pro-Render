@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { Upload, FileAudio, Download, Loader2, CheckCircle2, AlertCircle, Trash2, Clock, Languages, History as HistoryIcon } from 'lucide-react';
+import { Upload, FileAudio, Download, Loader2, CheckCircle2, AlertCircle, Trash2, Clock, Languages, History as HistoryIcon, AlignLeft, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
@@ -79,7 +79,7 @@ export default function BilingualV3({ user, onOpenQuotaModal }: { user: User | n
       setProgress(`正在辨識 (使用高精度 AI 引擎)...`);
       
       const formData = new FormData();
-      formData.append('audio', file);
+      formData.append('audio', file); // Backend expects 'audio' field
 
       const transcribeResponse = await fetch('/api/transcribe', {
         method: 'POST',
@@ -103,8 +103,18 @@ export default function BilingualV3({ user, onOpenQuotaModal }: { user: User | n
 
       if (!transcribeResponse.ok) {
         let errMsg = transcriptionResult.error || '辨識失敗';
+        if (typeof errMsg !== 'string') errMsg = JSON.stringify(errMsg);
+
+        // 如果有詳細資訊，也顯示出來
+        if (transcriptionResult.details) {
+          const details = typeof transcriptionResult.details === 'string' ? transcriptionResult.details : JSON.stringify(transcriptionResult.details);
+          errMsg += ` (詳情: ${details})`;
+        }
+
         if (errMsg.includes('Unexpected token') || errMsg.includes('is not valid JSON') || errMsg.includes('The page c')) {
-          errMsg = `OpenAI 代理伺服器錯誤：連線超時或無效回應。這通常是因為音檔過長導致處理超時。請嘗試上傳較短的音檔。`;
+          errMsg = `伺服器錯誤：連線超時或無效回應。這通常是因為音檔過長導致處理超時。請嘗試上傳較短的音檔。`;
+        } else if (errMsg.includes('Not found') || transcribeResponse.status === 404) {
+          errMsg = `伺服器端點未找到 (404)。請確認您的 Cloudflare Worker 網址設定正確，且包含 /v1。目前設定: ${transcriptionResult.details || '無詳細資訊'}`;
         }
         throw new Error(errMsg);
       }
@@ -219,38 +229,72 @@ ${JSON.stringify(transcriptionResult, null, 2)}
     URL.revokeObjectURL(url);
   };
 
+  const downloadTxt = (content: string, filename: string) => {
+    // Remove SRT timecodes and sequence numbers to get pure text
+    const txtContent = content
+      .replace(/^\ufeff/, '') // Remove BOM if present
+      .split('\r\n\r\n')
+      .map(block => {
+        const lines = block.split('\r\n');
+        // Skip sequence number (lines[0]) and timecode (lines[1])
+        return lines.slice(2).join('\n');
+      })
+      .filter(text => text.trim() !== '')
+      .join('\n');
+
+    const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="animate-in fade-in duration-500 space-y-12">
       <header className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wider"><Languages size={14} /><span>VoxFlow V3 Bilingual</span></div>
-        <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900">VoxFlow <span className="text-indigo-600">Bilingual</span></h1>
-        <p className="text-slate-500 text-lg max-w-md mx-auto">專業版：支援雙語分離轉錄，一鍵生成兩種語言的 SRT 檔案。</p>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider"><Languages size={14} /><span>VoxFlow V3 Bilingual</span></div>
+        <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-slate-50">VoxFlow <span className="text-indigo-600 dark:text-indigo-400">Bilingual</span></h1>
+        <p className="text-slate-500 dark:text-slate-400 text-lg max-w-md mx-auto">專業版：支援雙語分離轉錄，一鍵生成兩種語言的 SRT 檔案。</p>
       </header>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200/60 space-y-6">
+          <section className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-sm border border-slate-200/60 dark:border-slate-800 space-y-6 transition-colors duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">1. 選擇目標語言</label><select value={targetLang} onChange={(e) => setTargetLang(e.target.value)} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">{TARGET_LANGUAGES.map(lang => (<option key={lang.value} value={lang.value}>{lang.label}</option>))}</select></div>
-              <div className="space-y-2"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">2. 上傳音檔</label><div onClick={() => !isProcessing && fileInputRef.current?.click()} className={cn("cursor-pointer rounded-xl border-2 border-dashed transition-all px-4 py-2 flex items-center gap-3", file ? "border-indigo-600 bg-indigo-50/30" : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50", isProcessing && "opacity-50 cursor-not-allowed")}><input type="file" ref={fileInputRef} onChange={(e) => setFile(e.target.files?.[0] || null)} accept="audio/*" className="hidden" /><FileAudio size={20} className={file ? "text-indigo-600" : "text-slate-400"} /><p className="font-bold text-slate-900 text-sm truncate">{file ? file.name : "點擊上傳"}</p></div></div>
+              <div className="space-y-2"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">1. 選擇目標語言</label><select value={targetLang} onChange={(e) => setTargetLang(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">{TARGET_LANGUAGES.map(lang => (<option key={lang.value} value={lang.value}>{lang.label}</option>))}</select></div>
+              <div className="space-y-2"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">2. 上傳音檔</label><div onClick={() => !isProcessing && fileInputRef.current?.click()} className={cn("cursor-pointer rounded-xl border-2 border-dashed transition-all px-4 py-2 flex items-center gap-3", file ? "border-indigo-600 bg-indigo-50/30 dark:bg-indigo-900/20" : "border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-800/50", isProcessing && "opacity-50 cursor-not-allowed")}><input type="file" ref={fileInputRef} onChange={(e) => setFile(e.target.files?.[0] || null)} accept="audio/*" className="hidden" /><FileAudio size={20} className={file ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500"} /><p className="font-bold text-slate-900 dark:text-slate-50 text-sm truncate">{file ? file.name : "點擊上傳"}</p></div></div>
             </div>
-            {error && <div className="p-4 rounded-xl bg-red-50 text-red-600 text-sm flex items-center gap-2"><AlertCircle size={18} /> {error}</div>}
-            <button onClick={processAudio} disabled={!file || isProcessing} className={cn("w-full py-4 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-2", !file || isProcessing ? "bg-slate-200 text-slate-400" : "bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100")}>{isProcessing ? <><Loader2 className="animate-spin" size={20} /> {progress}</> : <><Languages size={20} /> 開始雙語轉錄</>}</button>
+            {error && <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm flex items-center gap-2 border border-red-100 dark:border-red-900/30"><AlertCircle size={18} /> {error}</div>}
+            <button onClick={processAudio} disabled={!file || isProcessing} className={cn("w-full py-4 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-2", !file || isProcessing ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500" : "bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none")}>{isProcessing ? <><Loader2 className="animate-spin" size={20} /> {progress}</> : <><Languages size={20} /> 開始雙語轉錄</>}</button>
           </section>
           {results && (
-            <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200/60 animate-in slide-in-from-bottom-4 space-y-6">
-              <div className="flex items-center gap-4"><div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center"><CheckCircle2 size={20} /></div><div><p className="font-bold">雙語轉錄完成</p><p className="text-xs text-slate-400">已生成原始語言與 {targetLang} 翻譯</p></div></div>
+            <section className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-sm border border-slate-200/60 dark:border-slate-800 animate-in slide-in-from-bottom-4 space-y-6 transition-colors duration-300">
+              <div className="flex items-center gap-4"><div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center"><CheckCircle2 size={20} /></div><div><p className="font-bold text-slate-900 dark:text-slate-50">雙語轉錄完成</p><p className="text-xs text-slate-400 dark:text-slate-500">已生成原始語言與 {targetLang} 翻譯</p></div></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button onClick={() => downloadFile(results.original, `${file?.name.split('.')[0]}_Original.srt`)} className="p-4 bg-slate-900 text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-all"><Download size={18} /> 下載原始語言 SRT</button>
-                <button onClick={() => downloadFile(results.translated, `${file?.name.split('.')[0]}_${targetLang}.srt`)} className="p-4 bg-indigo-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"><Download size={18} /> 下載 {targetLang} SRT</button>
+                <div className="space-y-2">
+                  <p className="text-sm font-bold text-slate-500 dark:text-slate-400">原始語言</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => downloadTxt(results.original, `${file?.name.split('.')[0]}_Original.txt`)} className="flex-1 p-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-sm"><AlignLeft size={16} /> 純文字</button>
+                    <button onClick={() => downloadFile(results.original, `${file?.name.split('.')[0]}_Original.srt`)} className="flex-1 p-3 bg-slate-900 dark:bg-slate-800 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-800 dark:hover:bg-slate-700 transition-all text-sm"><Download size={16} /> SRT</button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{targetLang} 翻譯</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => downloadTxt(results.translated, `${file?.name.split('.')[0]}_${targetLang}.txt`)} className="flex-1 p-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-sm"><AlignLeft size={16} /> 純文字</button>
+                    <button onClick={() => downloadFile(results.translated, `${file?.name.split('.')[0]}_${targetLang}.srt`)} className="flex-1 p-3 bg-indigo-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all text-sm shadow-md shadow-indigo-100 dark:shadow-none"><Download size={16} /> SRT</button>
+                  </div>
+                </div>
               </div>
             </section>
           )}
         </div>
         <div className="space-y-6">
-          <div className="flex items-center gap-2 px-2"><HistoryIcon size={18} className="text-slate-400" /><h3 className="font-bold text-slate-900">雙語紀錄 (V3)</h3></div>
+          <div className="flex items-center gap-2 px-2"><HistoryIcon size={18} className="text-slate-400 dark:text-slate-500" /><h3 className="font-bold text-slate-900 dark:text-slate-50">雙語紀錄 (V3)</h3></div>
           <div className="space-y-3">
-            {history.length === 0 ? (<div className="bg-slate-50 rounded-2xl p-8 text-center border border-slate-100"><p className="text-slate-400 text-sm font-medium">尚無雙語紀錄</p></div>) : (history.map((item) => (
-              <div key={item.id} className="group bg-white rounded-2xl p-4 border border-slate-200/60 hover:border-indigo-200 transition-all shadow-sm"><div className="flex flex-col gap-2"><p className="font-bold text-slate-900 text-sm truncate pr-6">{item.filename}</p><div className="flex items-center justify-between"><p className="text-[10px] text-slate-400 font-medium">{item.date}</p><span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">{item.targetLang}</span></div><div className="grid grid-cols-2 gap-2 mt-2"><button onClick={() => downloadFile(item.originalSrt, `${item.filename.split('.')[0]}_Original.srt`)} className="py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1"><Download size={12} /> 原文</button><button onClick={() => downloadFile(item.translatedSrt, `${item.filename.split('.')[0]}_${item.targetLang}.srt`)} className="py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1"><Download size={12} /> 譯文</button></div><button onClick={() => { const updated = history.filter(h => h.id !== item.id); localStorage.setItem('voxflow_history_v3', JSON.stringify(updated)); }} className="mt-1 self-end text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={12} /></button></div></div>
+            {history.length === 0 ? (<div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-8 text-center border border-slate-100 dark:border-slate-800"><p className="text-slate-400 dark:text-slate-500 text-sm font-medium">尚無雙語紀錄</p></div>) : (history.map((item) => (
+              <div key={item.id} className="group bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/60 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all shadow-sm"><div className="flex flex-col gap-2"><p className="font-bold text-slate-900 dark:text-slate-50 text-sm truncate pr-6">{item.filename}</p><div className="flex items-center justify-between"><p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{item.date}</p><span className="text-[9px] bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-full font-bold">{item.targetLang}</span></div><div className="grid grid-cols-2 gap-2 mt-2"><button onClick={() => downloadFile(item.originalSrt, `${item.filename.split('.')[0]}_Original.srt`)} className="py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1"><Download size={12} /> 原文</button><button onClick={() => downloadFile(item.translatedSrt, `${item.filename.split('.')[0]}_${item.targetLang}.srt`)} className="py-2 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1"><Download size={12} /> 譯文</button></div><button onClick={() => { const updated = history.filter(h => h.id !== item.id); localStorage.setItem('voxflow_history_v3', JSON.stringify(updated)); }} className="mt-1 self-end text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 transition-colors"><Trash2 size={12} /></button></div></div>
             )))}
           </div>
         </div>
