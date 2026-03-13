@@ -24,12 +24,12 @@ function getOpenAIClient() {
   let baseURL = process.env.OPENAI_BASE_URL?.trim();
   
   // 只有當 Base URL 是原本那個失效的預設 Worker 時，才進行自動修正
-  const isOldDefaultWorker = baseURL && baseURL.includes('winfred-api-gpt.theoder.workers.dev');
+  const isOldDefaultWorker = baseURL && (baseURL.includes('winfred-api-gpt.theoder.workers.dev') || baseURL.includes('voxflow-proxy.theoder.workers.dev'));
   
   if (apiKey && (!baseURL || isOldDefaultWorker)) {
     baseURL = undefined; // 使用官方 OpenAI API
   } else if (!apiKey && !baseURL) {
-    baseURL = "https://winfred-api-gpt.theoder.workers.dev/v1";
+    baseURL = "https://voxflow-proxy.theoder.workers.dev/v1";
   }
   
   const finalApiKey = apiKey || "dummy-key-for-proxy";
@@ -55,7 +55,7 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     const envBaseUrl = process.env.OPENAI_BASE_URL?.trim();
-    const isOldDefaultWorker = envBaseUrl && envBaseUrl.includes('winfred-api-gpt.theoder.workers.dev');
+    const isOldDefaultWorker = envBaseUrl && (envBaseUrl.includes('winfred-api-gpt.theoder.workers.dev') || envBaseUrl.includes('voxflow-proxy.theoder.workers.dev'));
     
     let actualBaseUrl = envBaseUrl || "official";
     if (apiKey && (!envBaseUrl || isOldDefaultWorker)) {
