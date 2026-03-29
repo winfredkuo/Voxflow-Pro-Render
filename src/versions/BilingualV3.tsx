@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { User } from 'firebase/auth';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
 interface SubtitleSegment { start: string; end: string; original: string; translated: string; }
 interface HistoryItem { id: string; filename: string; date: string; originalSrt: string; translatedSrt: string; targetLang: string; }
@@ -62,7 +63,13 @@ export default function BilingualV3({ user, onOpenQuotaModal }: { user: User | n
     setProgress('檢查額度...');
     try {
       const userDocRef = doc(db, "users", user.uid);
-      const docSnap = await getDoc(userDocRef);
+      let docSnap;
+      try {
+        docSnap = await getDoc(userDocRef);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+        throw err;
+      }
       const currentQuota = docSnap.data()?.quota || 0;
       const durationSeconds = await new Promise<number>((resolve) => {
         const audio = new Audio();
@@ -172,7 +179,12 @@ ${JSON.stringify(transcriptionResult, null, 2)}
         throw new Error("翻譯結果格式錯誤，請重試。");
       }
 
-      await updateDoc(userDocRef, { quota: increment(-durationMinutes) });
+      try {
+        await updateDoc(userDocRef, { quota: increment(-durationMinutes) });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+        throw err;
+      }
 
       // 輔助函數：將秒數轉換為 HH:MM:SS,mmm
       const formatTime = (seconds: any) => {

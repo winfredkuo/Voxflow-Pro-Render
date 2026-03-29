@@ -2,12 +2,69 @@ import React, { useState, useEffect } from 'react';
 import { auth, db, signInWithGoogle, logOut } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
-import { LogIn, LogOut, User as UserIcon, Coins, Sparkles, Loader2, X, MessageCircle, CreditCard, Settings, Search, Save, AlertCircle, Moon, Sun } from 'lucide-react';
+import { LogIn, LogOut, User as UserIcon, Coins, Sparkles, Loader2, X, MessageCircle, CreditCard, Settings, Search, Save, AlertCircle, Moon, Sun, RefreshCw } from 'lucide-react';
+import { handleFirestoreError, OperationType } from './lib/firestore-errors';
 import StableV1 from './versions/StableV1';
 import HistoryV2 from './versions/HistoryV2';
 import BilingualV3 from './versions/BilingualV3';
 
 type Version = 'V1' | 'V2' | 'V3';
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let errorMessage = "發生了預期之外的錯誤。";
+      let isPermissionError = false;
+
+      try {
+        const parsedError = JSON.parse(this.state.error.message);
+        if (parsedError.error && (parsedError.error.includes('permission') || parsedError.error.includes('insufficient'))) {
+          errorMessage = "權限不足或資料庫存取受限。請確認您的帳號權限。";
+          isPermissionError = true;
+        }
+      } catch (e) {
+        errorMessage = this.state.error.message || errorMessage;
+      }
+
+      return (
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 max-w-md w-full rounded-3xl shadow-2xl p-8 text-center space-y-6 border border-slate-200 dark:border-slate-800">
+            <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle size={40} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-slate-900 dark:text-slate-50">系統錯誤</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">{errorMessage}</p>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 dark:shadow-none"
+            >
+              <RefreshCw size={20} />
+              重新整理網頁
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 // 額度不足彈窗組件
 function QuotaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -63,7 +120,13 @@ function AdminPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
     setMessage('');
     try {
       const q = query(collection(db, "users"), where("email", "==", searchEmail.trim()));
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, "users (query by email)");
+        throw err;
+      }
       if (!querySnapshot.empty) {
         const userDoc = querySnapshot.docs[0];
         setFoundUser({ id: userDoc.id, ...userDoc.data() });
@@ -85,7 +148,12 @@ function AdminPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
     setIsUpdating(true);
     try {
       const userDocRef = doc(db, "users", foundUser.id);
-      await updateDoc(userDocRef, { quota: newQuota });
+      try {
+        await updateDoc(userDocRef, { quota: newQuota });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${foundUser.id}`);
+        throw err;
+      }
       setMessage('額度更新成功！');
       setFoundUser({ ...foundUser, quota: newQuota });
     } catch (error) {
@@ -183,18 +251,44 @@ function AdminPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
 }
 
 function NoticeBanner() {
+  const isInIframe = window.self !== window.top;
+  
   return (
-    <div className="bg-blue-50/80 dark:bg-blue-900/40 border border-blue-100 dark:border-blue-800/60 rounded-2xl p-5 mb-8 flex items-start gap-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
-      <div className="bg-blue-100 dark:bg-blue-800/60 text-blue-600 dark:text-blue-300 p-2 rounded-xl shrink-0">
-        <AlertCircle size={24} />
-      </div>
-      <div className="text-sm text-blue-800 dark:text-blue-100 space-y-2">
-        <p className="font-black text-base text-blue-900 dark:text-blue-50">💡 系統使用須知</p>
-        <ul className="list-disc list-inside space-y-1 ml-1 opacity-90">
-          <li><strong className="text-blue-900 dark:text-blue-50">啟動時間：</strong>本站使用免費伺服器，若超過 15 分鐘無人使用會進入休眠。首次開啟或上傳時，可能需要等待約 1 分鐘喚醒伺服器。</li>
-          <li><strong className="text-blue-900 dark:text-blue-50">隱私保護：</strong>為保護您的隱私與節省空間，音檔在處理完成後會<strong className="text-blue-900 dark:text-blue-50">立即永久刪除</strong>，不會保留在伺服器上。</li>
-          <li><strong className="text-blue-900 dark:text-blue-50">資料保存：</strong>產生的 SRT 字幕檔請務必<strong className="text-blue-900 dark:text-blue-50">盡快下載保存</strong>。若重新整理網頁或離開，未下載的字幕資料將會消失。</li>
-        </ul>
+    <div className="space-y-4 mb-8">
+      {isInIframe && (
+        <div className="bg-amber-50/80 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800/60 rounded-2xl p-5 flex items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-4">
+            <div className="bg-amber-100 dark:bg-amber-800/60 text-amber-600 dark:text-amber-300 p-2 rounded-xl shrink-0">
+              <AlertCircle size={24} />
+            </div>
+            <div className="text-sm text-amber-800 dark:text-amber-100">
+              <p className="font-black text-base text-amber-900 dark:text-amber-50">⚠️ 偵測到內嵌視窗模式</p>
+              <p className="opacity-90">為了確保 Google 登入與 Cookie 正常運作，建議點擊右側按鈕在新分頁開啟。</p>
+            </div>
+          </div>
+          <a 
+            href={window.location.href} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-amber-600 text-white rounded-xl font-bold text-sm hover:bg-amber-700 transition-all whitespace-nowrap"
+          >
+            在新分頁開啟
+          </a>
+        </div>
+      )}
+      
+      <div className="bg-blue-50/80 dark:bg-blue-900/40 border border-blue-100 dark:border-blue-800/60 rounded-2xl p-5 flex items-start gap-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="bg-blue-100 dark:bg-blue-800/60 text-blue-600 dark:text-blue-300 p-2 rounded-xl shrink-0">
+          <AlertCircle size={24} />
+        </div>
+        <div className="text-sm text-blue-800 dark:text-blue-100 space-y-2">
+          <p className="font-black text-base text-blue-900 dark:text-blue-50">💡 系統使用須知</p>
+          <ul className="list-disc list-inside space-y-1 ml-1 opacity-90">
+            <li><strong className="text-blue-900 dark:text-blue-50">啟動時間：</strong>本站使用免費伺服器，若超過 15 分鐘無人使用會進入休眠。首次開啟或上傳時，可能需要等待約 1 分鐘喚醒伺服器。</li>
+            <li><strong className="text-blue-900 dark:text-blue-50">隱私保護：</strong>為保護您的隱私與節省空間，音檔在處理完成後會<strong className="text-blue-900 dark:text-blue-50">立即永久刪除</strong>，不會保留在伺服器上。</li>
+            <li><strong className="text-blue-900 dark:text-blue-50">資料保存：</strong>產生的 SRT 字幕檔請務必<strong className="text-blue-900 dark:text-blue-50">盡快下載保存</strong>。若重新整理網頁或離開，未下載的字幕資料將會消失。</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
@@ -242,6 +336,8 @@ function App() {
         const userDocRef = doc(db, "users", currentUser.uid);
         const unsubSnapshot = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) setQuota(docSnap.data().quota || 0);
+        }, (err) => {
+          handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
         });
         setLoading(false);
         return () => unsubSnapshot();
@@ -255,15 +351,26 @@ function App() {
 
   const initializeUserProfile = async (currentUser: User) => {
     const userDocRef = doc(db, "users", currentUser.uid);
-    const docSnap = await getDoc(userDocRef);
+    let docSnap;
+    try {
+      docSnap = await getDoc(userDocRef);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
+      throw err;
+    }
     if (!docSnap.exists()) {
-      await setDoc(userDocRef, {
-        email: currentUser.email,
-        displayName: currentUser.displayName,
-        photoURL: currentUser.photoURL,
-        quota: 60,
-        createdAt: new Date().toISOString()
-      });
+      try {
+        await setDoc(userDocRef, {
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL,
+          quota: 60,
+          createdAt: new Date().toISOString()
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
+        throw err;
+      }
     }
   };
 
@@ -380,4 +487,10 @@ function App() {
   );
 }
 
-export default App;
+export default function AppWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
