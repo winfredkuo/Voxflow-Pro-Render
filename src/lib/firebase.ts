@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBge5NcCflxCHiRzcAL7jOxDDWXUjgdxRE",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "voxflow-pro.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "voxflow-pro",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "voxflow-pro.appspot.com",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "voxflow-pro.firebasestorage.app",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "957058122655",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:957058122655:web:c0f6655d7016697e1873aa"
 };

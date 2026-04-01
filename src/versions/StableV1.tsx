@@ -2,13 +2,14 @@ import React, { useState, useRef } from 'react';
 import { Upload, FileAudio, Download, Loader2, CheckCircle2, AlertCircle, FileText, ShieldCheck, AlignLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { logUsage } from '../lib/usage';
 
 interface Subtitle { start: string; end: string; text: string; }
 
-export default function StableV1({ user, onOpenQuotaModal }: { user: User | null; onOpenQuotaModal: () => void }) {
+export default function StableV1({ user, onOpenQuotaModal, onOpenSupport }: { user: User | null; onOpenQuotaModal: () => void; onOpenSupport: (code?: string) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState<string>('auto');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -146,8 +147,32 @@ export default function StableV1({ user, onOpenQuotaModal }: { user: User | null
 
       setSrtContent('\ufeff' + srt);
       setProgress('完成！');
+
+      // 成功日誌
+      await logUsage({
+        uid: user.uid,
+        email: user.email || 'unknown',
+        version: 'V1',
+        duration: durationMinutes,
+        status: 'success',
+        fileName: file.name,
+      });
     } catch (err: any) {
-      setError(err.message || "發生錯誤。");
+      const errorMessage = err.message || "發生錯誤。";
+      setError(errorMessage);
+
+      // 失敗日誌 (排除額度不足)
+      if (!errorMessage.includes('額度不足')) {
+        await logUsage({
+          uid: user.uid,
+          email: user.email || 'unknown',
+          version: 'V1',
+          duration: 0,
+          status: 'error',
+          error: errorMessage,
+          fileName: file.name,
+        });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -233,7 +258,22 @@ export default function StableV1({ user, onOpenQuotaModal }: { user: User | null
           </div>
         </div>
 
-        {error && <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm flex items-center gap-2 border border-red-100 dark:border-red-900/30"><AlertCircle size={18} /> {error}</div>}
+        {error && (
+          <div className="space-y-3">
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm flex items-center gap-2 border border-red-100 dark:border-red-900/30">
+              <AlertCircle size={18} /> 
+              {error}
+            </div>
+            {!error.includes('額度不足') && (
+              <button 
+                onClick={() => onOpenSupport(`V1-ERR-${Date.now()}`)}
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline ml-1"
+              >
+                遇到問題？點此回報技術支援
+              </button>
+            )}
+          </div>
+        )}
 
         <button onClick={processAudio} disabled={!file || isProcessing} className={cn("w-full py-4 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-2", !file || isProcessing ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500" : "bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none")}>
           {isProcessing ? <><Loader2 className="animate-spin" size={20} /> {progress}</> : <><FileText size={20} /> 開始生成字幕</>}

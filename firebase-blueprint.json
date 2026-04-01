@@ -22,15 +22,65 @@
           "type": "string",
           "enum": ["admin", "user"],
           "description": "The user's role in the application."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "The user's photo URL."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The user's creation timestamp."
         }
       },
-      "required": ["uid", "quota"]
+      "required": ["quota"]
+    },
+    "UsageLog": {
+      "title": "Usage Log",
+      "description": "A record of a transcription attempt.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "fileName": { "type": "string" },
+        "duration": { "type": "number", "description": "Audio duration in seconds." },
+        "version": { "type": "string", "enum": ["V1", "V3"] },
+        "status": { "type": "string", "enum": ["success", "error"] },
+        "errorMessage": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["uid", "email", "status", "timestamp"]
+    },
+    "SupportTicket": {
+      "title": "Support Ticket",
+      "description": "A user-submitted error report or support request.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "errorCode": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["uid", "email", "message", "timestamp"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
       "description": "Individual user documents containing quota and profile data."
+    },
+    "usage_logs/{logId}": {
+      "schema": "UsageLog",
+      "description": "Logs of all transcription attempts."
+    },
+    "support_tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "User-submitted support requests."
     }
   }
 }

@@ -3,9 +3,10 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Upload, FileAudio, Download, Loader2, CheckCircle2, AlertCircle, Trash2, Clock, Languages, History as HistoryIcon, AlignLeft, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { logUsage } from '../lib/usage';
 
 interface SubtitleSegment { start: string; end: string; original: string; translated: string; }
 interface HistoryItem { id: string; filename: string; date: string; originalSrt: string; translatedSrt: string; targetLang: string; }
@@ -19,7 +20,7 @@ const TARGET_LANGUAGES = [
   { label: '德文 (German)', value: 'German' },
 ];
 
-export default function BilingualV3({ user, onOpenQuotaModal }: { user: User | null; onOpenQuotaModal: () => void }) {
+export default function BilingualV3({ user, onOpenQuotaModal, onOpenSupport }: { user: User | null; onOpenQuotaModal: () => void; onOpenSupport: (code?: string) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [targetLang, setTargetLang] = useState('English');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -227,7 +228,33 @@ ${JSON.stringify(transcriptionResult, null, 2)}
       setResults({ original: originalSrt, translated: translatedSrt });
       saveToHistory(file.name, originalSrt, translatedSrt, targetLang);
       setProgress('完成！');
-    } catch (err: any) { setError(err.message || "發生錯誤。"); } finally { setIsProcessing(false); }
+
+      // 成功日誌
+      await logUsage({
+        uid: user.uid,
+        email: user.email || 'unknown',
+        version: 'V3',
+        duration: durationMinutes,
+        status: 'success',
+        fileName: file.name,
+      });
+    } catch (err: any) { 
+      const errorMessage = err.message || "發生錯誤。";
+      setError(errorMessage); 
+
+      // 失敗日誌
+      if (!errorMessage.includes('額度不足')) {
+        await logUsage({
+          uid: user.uid,
+          email: user.email || 'unknown',
+          version: 'V3',
+          duration: 0,
+          status: 'error',
+          error: errorMessage,
+          fileName: file.name,
+        });
+      }
+    } finally { setIsProcessing(false); }
   };
 
   const downloadFile = (content: string, filename: string) => {
@@ -277,7 +304,22 @@ ${JSON.stringify(transcriptionResult, null, 2)}
               <div className="space-y-2"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">1. 選擇目標語言</label><select value={targetLang} onChange={(e) => setTargetLang(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all">{TARGET_LANGUAGES.map(lang => (<option key={lang.value} value={lang.value}>{lang.label}</option>))}</select></div>
               <div className="space-y-2"><label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">2. 上傳音檔</label><div onClick={() => !isProcessing && fileInputRef.current?.click()} className={cn("cursor-pointer rounded-xl border-2 border-dashed transition-all px-4 py-2 flex items-center gap-3", file ? "border-indigo-600 bg-indigo-50/30 dark:bg-indigo-900/20" : "border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-800/50", isProcessing && "opacity-50 cursor-not-allowed")}><input type="file" ref={fileInputRef} onChange={(e) => setFile(e.target.files?.[0] || null)} accept="audio/*" className="hidden" /><FileAudio size={20} className={file ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500"} /><p className="font-bold text-slate-900 dark:text-slate-50 text-sm truncate">{file ? file.name : "點擊上傳"}</p></div></div>
             </div>
-            {error && <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm flex items-center gap-2 border border-red-100 dark:border-red-900/30"><AlertCircle size={18} /> {error}</div>}
+            {error && (
+              <div className="space-y-3">
+                <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm flex items-center gap-2 border border-red-100 dark:border-red-900/30">
+                  <AlertCircle size={18} /> 
+                  {error}
+                </div>
+                {!error.includes('額度不足') && (
+                  <button 
+                    onClick={() => onOpenSupport(`V3-ERR-${Date.now()}`)}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline ml-1"
+                  >
+                    遇到問題？點此回報技術支援
+                  </button>
+                )}
+              </div>
+            )}
             <button onClick={processAudio} disabled={!file || isProcessing} className={cn("w-full py-4 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-2", !file || isProcessing ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500" : "bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none")}>{isProcessing ? <><Loader2 className="animate-spin" size={20} /> {progress}</> : <><Languages size={20} /> 開始雙語轉錄</>}</button>
           </section>
           {results && (

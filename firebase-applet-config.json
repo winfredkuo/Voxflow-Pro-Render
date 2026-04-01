@@ -2,7 +2,7 @@
   "apiKey": "AIzaSyBge5NcCflxCHiRzcAL7jOxDDWXUjgdxRE",
   "authDomain": "voxflow-pro.firebaseapp.com",
   "projectId": "voxflow-pro",
-  "storageBucket": "voxflow-pro.appspot.com",
+  "storageBucket": "voxflow-pro.firebasestorage.app",
   "messagingSenderId": "957058122655",
   "appId": "1:957058122655:web:c0f6655d7016697e1873aa"
 }

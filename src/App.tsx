@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db, signInWithGoogle, logOut } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
-import { LogIn, LogOut, User as UserIcon, Coins, Sparkles, Loader2, X, MessageCircle, CreditCard, Settings, Search, Save, AlertCircle, Moon, Sun, RefreshCw } from 'lucide-react';
+import { doc, getDoc, setDoc, onSnapshot, collection, query, where, getDocs, updateDoc, orderBy, limit } from 'firebase/firestore';
+import { LogIn, LogOut, User as UserIcon, Coins, Sparkles, Loader2, X, MessageCircle, CreditCard, Settings, Search, Save, AlertCircle, Moon, Sun, RefreshCw, UserPlus, Send, HelpCircle, CheckCircle2, List, Ticket } from 'lucide-react';
 import { handleFirestoreError, OperationType } from './lib/firestore-errors';
+import { logUsage, submitSupportTicket } from './lib/usage';
+import { cn } from './lib/utils';
 import StableV1 from './versions/StableV1';
 import HistoryV2 from './versions/HistoryV2';
 import BilingualV3 from './versions/BilingualV3';
@@ -105,19 +107,154 @@ function QuotaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
   );
 }
 
+// 專業版錯誤回報彈窗
+function SupportModal({ isOpen, onClose, user, initialErrorCode }: { isOpen: boolean; onClose: () => void; user: User | null; initialErrorCode?: string }) {
+  const [message, setMessage] = useState('');
+  const [subject, setSubject] = useState('系統錯誤回報');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSuccess(false);
+      setMessage('');
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !message) return;
+    setIsSubmitting(true);
+    try {
+      await submitSupportTicket({
+        uid: user.uid,
+        email: user.email || 'unknown',
+        subject,
+        message,
+        errorCode: initialErrorCode,
+      });
+      setSuccess(true);
+      setTimeout(onClose, 2000);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200/60 dark:border-slate-800">
+        <div className="p-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+              <HelpCircle size={24} />
+              <h3 className="text-xl font-black dark:text-slate-50">聯絡技術支援</h3>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+              <X size={20} className="text-slate-400" />
+            </button>
+          </div>
+
+          {success ? (
+            <div className="py-12 text-center space-y-4 animate-in fade-in zoom-in-95">
+              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle2 size={32} />
+              </div>
+              <p className="font-bold text-slate-900 dark:text-slate-50">回報已送出！</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">管理員將會盡快處理您的問題。</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">主旨</label>
+                <input 
+                  type="text" 
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-slate-50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">問題描述</label>
+                <textarea 
+                  rows={4}
+                  placeholder="請詳細描述您遇到的問題..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-slate-50 resize-none"
+                  required
+                />
+              </div>
+              {initialErrorCode && (
+                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-400 font-mono">錯誤代碼: {initialErrorCode}</p>
+                </div>
+              )}
+              <button 
+                type="submit"
+                disabled={isSubmitting || !message}
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-indigo-100 dark:shadow-none"
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
+                送出回報
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // 管理員面板組件
 function AdminPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'tickets'>('users');
   const [searchEmail, setSearchEmail] = useState('');
+  const [manualUid, setManualUid] = useState('');
   const [foundUser, setFoundUser] = useState<any>(null);
   const [newQuota, setNewQuota] = useState<number>(0);
   const [isSearching, setIsSearching] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [message, setMessage] = useState('');
+  
+  const [logs, setLogs] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && activeTab !== 'users') {
+      fetchData();
+    }
+  }, [isOpen, activeTab]);
+
+  const fetchData = async () => {
+    setIsLoadingData(true);
+    try {
+      if (activeTab === 'logs') {
+        const q = query(collection(db, "usage_logs"), orderBy("timestamp", "desc"), limit(50));
+        const snap = await getDocs(q);
+        setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } else if (activeTab === 'tickets') {
+        const q = query(collection(db, "support_tickets"), orderBy("timestamp", "desc"), limit(50));
+        const snap = await getDocs(q);
+        setTickets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchEmail) return;
     setIsSearching(true);
     setMessage('');
+    setFoundUser(null);
     try {
       const q = query(collection(db, "users"), where("email", "==", searchEmail.trim()));
       let querySnapshot;
@@ -133,13 +270,38 @@ function AdminPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
         setNewQuota(userDoc.data().quota || 0);
       } else {
         setFoundUser(null);
-        setMessage('找不到該使用者');
+        setMessage('找不到該使用者，您可以嘗試手動建立。');
       }
     } catch (error) {
       console.error(error);
       setMessage('搜尋發生錯誤');
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleCreateManual = async () => {
+    if (!searchEmail || !manualUid) {
+      setMessage('請輸入 Email 與 UID');
+      return;
+    }
+    setIsCreating(true);
+    setMessage('');
+    try {
+      const userDocRef = doc(db, "users", manualUid.trim());
+      await setDoc(userDocRef, {
+        email: searchEmail.trim(),
+        quota: 60,
+        createdAt: new Date().toISOString(),
+        role: 'user'
+      });
+      setMessage('手動建立成功！');
+      handleSearch();
+    } catch (error) {
+      console.error(error);
+      setMessage('建立失敗：' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -158,7 +320,7 @@ function AdminPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
       setFoundUser({ ...foundUser, quota: newQuota });
     } catch (error) {
       console.error(error);
-      setMessage('更新失敗');
+      setMessage('更新失敗: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsUpdating(false);
     }
@@ -167,81 +329,225 @@ function AdminPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200/60 dark:border-slate-800">
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
-          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-            <Settings size={20} />
-            <h3 className="font-black text-lg dark:text-slate-50">VoxFlow 管理員後台</h3>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200/60 dark:border-slate-800 flex flex-col">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center">
+              <Settings size={20} />
+            </div>
+            <h3 className="text-xl font-black dark:text-slate-50">VoxFlow 管理員後台</h3>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 dark:text-slate-400 rounded-full transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+            <X size={20} className="text-slate-400" />
           </button>
         </div>
 
-        <div className="p-8 space-y-8 overflow-y-auto">
-          <div className="space-y-4">
-            <label className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">搜尋使用者 Email</label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="email" 
-                  value={searchEmail}
-                  onChange={(e) => setSearchEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-slate-50 dark:placeholder-slate-500"
-                />
-              </div>
-              <button 
-                onClick={handleSearch}
-                disabled={isSearching}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all"
-              >
-                {isSearching ? <Loader2 className="animate-spin" size={20} /> : '搜尋'}
-              </button>
-            </div>
-          </div>
+        <div className="flex border-b border-slate-100 dark:border-slate-800 shrink-0">
+          <button 
+            onClick={() => setActiveTab('users')}
+            className={cn(
+              "flex-1 py-4 text-sm font-bold transition-all border-b-2 flex items-center justify-center gap-2",
+              activeTab === 'users' ? "border-indigo-600 text-indigo-600 bg-indigo-50/30 dark:bg-indigo-900/10" : "border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            )}
+          >
+            <UserIcon size={18} /> 使用者管理
+          </button>
+          <button 
+            onClick={() => setActiveTab('logs')}
+            className={cn(
+              "flex-1 py-4 text-sm font-bold transition-all border-b-2 flex items-center justify-center gap-2",
+              activeTab === 'logs' ? "border-indigo-600 text-indigo-600 bg-indigo-50/30 dark:bg-indigo-900/10" : "border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            )}
+          >
+            <List size={18} /> 使用日誌
+          </button>
+          <button 
+            onClick={() => setActiveTab('tickets')}
+            className={cn(
+              "flex-1 py-4 text-sm font-bold transition-all border-b-2 flex items-center justify-center gap-2",
+              activeTab === 'tickets' ? "border-indigo-600 text-indigo-600 bg-indigo-50/30 dark:bg-indigo-900/10" : "border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            )}
+          >
+            <Ticket size={18} /> 支援工單
+          </button>
+        </div>
 
-          {message && (
-            <div className={`p-4 rounded-2xl text-sm font-bold text-center ${message.includes('成功') ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
-              {message}
+        <div className="flex-1 overflow-y-auto p-8">
+          {activeTab === 'users' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">搜尋使用者 (Email)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="email" 
+                    placeholder="example@gmail.com"
+                    value={searchEmail}
+                    onChange={(e) => setSearchEmail(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-slate-50"
+                  />
+                  <button 
+                    onClick={handleSearch}
+                    disabled={isSearching}
+                    className="px-6 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isSearching ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
+                    搜尋
+                  </button>
+                </div>
+              </div>
+
+              {message && (
+                <div className={`p-4 rounded-2xl text-sm font-bold text-center ${message.includes('成功') ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
+                  {message}
+                </div>
+              )}
+
+              {foundUser ? (
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-6 animate-in slide-in-from-top-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">使用者資訊</p>
+                      <h4 className="text-lg font-black dark:text-slate-50">{foundUser.email}</h4>
+                      <p className="text-[10px] text-slate-400 font-mono mt-1">UID: {foundUser.id}</p>
+                    </div>
+                    <div className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-xs font-bold">
+                      {foundUser.role || 'user'}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">剩餘額度 (分鐘)</label>
+                      <input 
+                        type="number" 
+                        value={newQuota}
+                        onChange={(e) => setNewQuota(parseInt(e.target.value) || 0)}
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-slate-50"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <button 
+                        onClick={handleUpdate}
+                        disabled={isUpdating}
+                        className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isUpdating ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                        儲存更新
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : !isSearching && searchEmail && message.includes('找不到') && (
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4 animate-in slide-in-from-top-4">
+                  <p className="text-sm font-bold text-slate-500">手動建立使用者紀錄 (當 Auth 有人但 Firestore 沒人時)</p>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">輸入使用者 UID</label>
+                      <input 
+                        type="text" 
+                        placeholder="jOJ2k..."
+                        value={manualUid}
+                        onChange={(e) => setManualUid(e.target.value)}
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-slate-50"
+                      />
+                    </div>
+                    <button 
+                      onClick={handleCreateManual}
+                      disabled={isCreating || !manualUid}
+                      className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isCreating ? <Loader2 className="animate-spin" size={18} /> : <UserPlus size={18} />}
+                      建立 Firestore 紀錄
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {foundUser && (
-            <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-700 space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-              <div className="flex items-center gap-4">
-                <img src={foundUser.photoURL} className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-700 shadow-sm" />
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-slate-50">{foundUser.displayName}</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{foundUser.email}</p>
+          {activeTab === 'logs' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <h4 className="font-black dark:text-slate-50">最近 50 筆使用日誌</h4>
+                <button onClick={fetchData} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400">
+                  <RefreshCw size={16} className={isLoadingData ? "animate-spin" : ""} />
+                </button>
+              </div>
+              
+              {isLoadingData ? (
+                <div className="py-20 flex flex-col items-center justify-center gap-4 text-slate-400">
+                  <Loader2 className="animate-spin" size={40} />
+                  <p className="font-bold">載入中...</p>
                 </div>
+              ) : logs.length === 0 ? (
+                <div className="py-20 text-center text-slate-400">尚無日誌紀錄</div>
+              ) : (
+                <div className="space-y-3">
+                  {logs.map(log => (
+                    <div key={log.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
+                            log.status === 'success' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+                          )}>
+                            {log.status}
+                          </span>
+                          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full uppercase">
+                            {log.version}
+                          </span>
+                          <span className="text-xs font-bold dark:text-slate-300 truncate">{log.email}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1 truncate">{log.fileName} ({log.duration} min)</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-400 font-mono">{new Date(log.timestamp).toLocaleString()}</p>
+                        {log.error && <p className="text-[9px] text-red-500 mt-1 truncate max-w-[200px]">{log.error}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'tickets' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between">
+                <h4 className="font-black dark:text-slate-50">最近 50 筆支援工單</h4>
+                <button onClick={fetchData} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400">
+                  <RefreshCw size={16} className={isLoadingData ? "animate-spin" : ""} />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">目前額度</p>
-                  <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{foundUser.quota} <span className="text-xs font-medium">min</span></p>
+              {isLoadingData ? (
+                <div className="py-20 flex flex-col items-center justify-center gap-4 text-slate-400">
+                  <Loader2 className="animate-spin" size={40} />
+                  <p className="font-bold">載入中...</p>
                 </div>
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">修改額度</p>
-                  <input 
-                    type="number" 
-                    value={newQuota}
-                    onChange={(e) => setNewQuota(parseInt(e.target.value) || 0)}
-                    className="w-full text-2xl font-black text-slate-900 dark:text-slate-50 bg-transparent outline-none"
-                  />
+              ) : tickets.length === 0 ? (
+                <div className="py-20 text-center text-slate-400">尚無工單紀錄</div>
+              ) : (
+                <div className="space-y-4">
+                  {tickets.map(ticket => (
+                    <div key={ticket.id} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-black text-indigo-600 dark:text-indigo-400">{ticket.subject}</h5>
+                        <p className="text-[10px] text-slate-400 font-mono">{new Date(ticket.timestamp).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <UserIcon size={14} className="text-slate-400" />
+                        <span className="text-xs font-bold dark:text-slate-300">{ticket.email}</span>
+                        {ticket.errorCode && <span className="text-[9px] bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded font-mono">Code: {ticket.errorCode}</span>}
+                      </div>
+                      <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+                        {ticket.message}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-
-              <button 
-                onClick={handleUpdate}
-                disabled={isUpdating}
-                className="w-full py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 dark:hover:bg-indigo-700 disabled:opacity-50 transition-all"
-              >
-                {isUpdating ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> 儲存更新</>}
-              </button>
+              )}
             </div>
           )}
         </div>
@@ -300,9 +606,16 @@ function App() {
   const [quota, setQuota] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [supportErrorCode, setSupportErrorCode] = useState<string | undefined>(undefined);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const isAdmin = user?.email === 'theoder@gmail.com';
+
+  const openSupport = (code?: string) => {
+    setSupportErrorCode(code);
+    setIsSupportModalOpen(true);
+  };
 
   useEffect(() => {
     // Initialize dark mode from localStorage or system preference
@@ -463,9 +776,9 @@ function App() {
             </div>
 
             <div className="min-h-[600px]">
-              {activeVersion === 'V1' && <StableV1 user={user} onOpenQuotaModal={() => setIsQuotaModalOpen(true)} />}
+              {activeVersion === 'V1' && <StableV1 user={user} onOpenQuotaModal={() => setIsQuotaModalOpen(true)} onOpenSupport={openSupport} />}
               {/* {activeVersion === 'V2' && <HistoryV2 user={user} onOpenQuotaModal={() => setIsQuotaModalOpen(true)} />} */}
-              {activeVersion === 'V3' && <BilingualV3 user={user} onOpenQuotaModal={() => setIsQuotaModalOpen(true)} />}
+              {activeVersion === 'V3' && <BilingualV3 user={user} onOpenQuotaModal={() => setIsQuotaModalOpen(true)} onOpenSupport={openSupport} />}
             </div>
           </div>
         ) : (
@@ -483,6 +796,10 @@ function App() {
       <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-slate-200/60 dark:border-slate-800 text-center transition-colors duration-300">
         <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">© 2024 VoxFlow Pro Lab • Professional Transcription Ecosystem</p>
       </footer>
+
+      <QuotaModal isOpen={isQuotaModalOpen} onClose={() => setIsQuotaModalOpen(false)} />
+      <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} user={user} initialErrorCode={supportErrorCode} />
+      <AdminPanel isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
     </div>
   );
 }
