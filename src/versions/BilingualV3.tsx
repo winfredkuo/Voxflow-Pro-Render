@@ -293,8 +293,8 @@ ${JSON.stringify(transcriptionResult, null, 2)}
   return (
     <div className="animate-in fade-in duration-500 space-y-12">
       <header className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider"><Languages size={14} /><span>VoxFlow V3 Bilingual</span></div>
-        <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-slate-50">VoxFlow <span className="text-indigo-600 dark:text-indigo-400">Bilingual</span></h1>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider"><Languages size={14} /><span>VoxFlow V3 雙語翻譯</span></div>
+        <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-slate-50">VoxFlow <span className="text-indigo-600 dark:text-indigo-400">雙語翻譯</span></h1>
         <p className="text-slate-500 dark:text-slate-400 text-lg max-w-md mx-auto">專業版：支援雙語分離轉錄，一鍵生成兩種語言的 SRT 檔案。</p>
       </header>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -320,11 +320,11 @@ ${JSON.stringify(transcriptionResult, null, 2)}
                 )}
               </div>
             )}
-            <button onClick={processAudio} disabled={!file || isProcessing} className={cn("w-full py-4 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-2", !file || isProcessing ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500" : "bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none")}>{isProcessing ? <><Loader2 className="animate-spin" size={20} /> {progress}</> : <><Languages size={20} /> 開始雙語轉錄</>}</button>
+            <button onClick={processAudio} disabled={!file || isProcessing} className={cn("w-full py-4 rounded-2xl font-bold text-white transition-all flex items-center justify-center gap-2", !file || isProcessing ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500" : "bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none")}>{isProcessing ? <><Loader2 className="animate-spin" size={20} /> {progress}</> : <><Languages size={20} /> 開始雙語翻譯</>}</button>
           </section>
           {results && (
             <section className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-sm border border-slate-200/60 dark:border-slate-800 animate-in slide-in-from-bottom-4 space-y-6 transition-colors duration-300">
-              <div className="flex items-center gap-4"><div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center"><CheckCircle2 size={20} /></div><div><p className="font-bold text-slate-900 dark:text-slate-50">雙語轉錄完成</p><p className="text-xs text-slate-400 dark:text-slate-500">已生成原始語言與 {targetLang} 翻譯</p></div></div>
+              <div className="flex items-center gap-4"><div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center"><CheckCircle2 size={20} /></div><div><p className="font-bold text-slate-900 dark:text-slate-50">雙語翻譯完成</p><p className="text-xs text-slate-400 dark:text-slate-500">已生成原始語言與 {targetLang} 翻譯</p></div></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <p className="text-sm font-bold text-slate-500 dark:text-slate-400">原始語言</p>

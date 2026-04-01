@@ -216,9 +216,9 @@ export default function StableV1({ user, onOpenQuotaModal, onOpenSupport }: { us
       <header className="text-center space-y-4">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider">
           <ShieldCheck size={14} />
-          <span>VoxFlow V1 Stable</span>
+          <span>VoxFlow V1 單語辨識</span>
         </div>
-        <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-slate-50">VoxFlow <span className="text-indigo-600 dark:text-indigo-400">Stable</span></h1>
+        <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-slate-50">VoxFlow <span className="text-indigo-600 dark:text-indigo-400">單語辨識</span></h1>
         <p className="text-slate-500 dark:text-slate-400 text-lg">基準穩定版：專注於極速、精準的單語轉錄。</p>
       </header>
 

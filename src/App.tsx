@@ -769,7 +769,7 @@ function App() {
                       activeVersion === v ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
-                    {v === 'V1' ? 'Stable' : 'Bilingual'}
+                    {v === 'V1' ? '單語辨識' : '雙語翻譯'}
                   </button>
                 ))}
               </div>
