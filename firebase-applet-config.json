@@ -1,10 +1,9 @@
 {
-  "projectId": "gen-lang-client-0933466895",
-  "appId": "1:421050721420:web:44796c8545985bbfea87a9",
-  "apiKey": "AIzaSyAsC8nE09u3tyyCXToqqaitRwVZlHdmuKw",
-  "authDomain": "gen-lang-client-0933466895.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-cc22ec46-05b8-4582-a105-014920fc0eb1",
-  "storageBucket": "gen-lang-client-0933466895.firebasestorage.app",
-  "messagingSenderId": "421050721420",
-  "measurementId": ""
+  "apiKey": "AIzaSyBge5NcCflxCHiRzcAL7jOxDDWXUjgdxRE",
+  "authDomain": "voxflow-pro.firebaseapp.com",
+  "projectId": "voxflow-pro",
+  "storageBucket": "voxflow-pro.firebasestorage.app",
+  "messagingSenderId": "957058122655",
+  "appId": "1:957058122655:web:c0f6655d7016697e1873aa",
+  "firestoreDatabaseId": "(default)"
 }
