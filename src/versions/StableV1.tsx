@@ -49,6 +49,7 @@ export default function StableV1({ user, onOpenQuotaModal, onOpenSupport }: { us
         throw err;
       }
       const currentQuota = docSnap.data()?.quota || 0;
+      const isAdmin = user.email === 'theoder@gmail.com';
       const durationSeconds = await new Promise<number>((resolve) => {
         const audio = new Audio();
         audio.src = URL.createObjectURL(file);
@@ -56,9 +57,9 @@ export default function StableV1({ user, onOpenQuotaModal, onOpenSupport }: { us
       });
       const durationMinutes = Math.ceil(durationSeconds / 60);
 
-      if (currentQuota < durationMinutes) {
+      if (!isAdmin && currentQuota < durationMinutes) {
         onOpenQuotaModal();
-        throw new Error(`額度不足。此音檔需 ${durationMinutes} 分鐘。`);
+        throw new Error(`額度不足。此音檔需 ${durationMinutes} 分鐘，您剩餘 ${currentQuota} 分鐘。`);
       }
 
       setProgress('正在辨識 (使用高精度 AI 引擎)...');

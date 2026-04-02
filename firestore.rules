@@ -1,33 +1,45 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
     function isAuthenticated() {
       return request.auth != null;
     }
 
     function isAdmin() {
       return isAuthenticated() && 
-             (request.auth.token.email == "theoder@gmail.com");
+             (request.auth.uid == "VSYEnqm5VRUhwrJPGUpocOrqKKh1" || 
+              request.auth.token.email == "theoder@gmail.com");
     }
 
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // 使用者資料：只有本人或管理員可以讀寫
     match /users/{userId} {
-      // Users can read/write their own profile, admin can do everything
-      allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
-    match /usage_logs/{logId} {
-      // Users can only create logs, admin can read all
+    // 使用日誌：任何人都可以建立，但只有管理員可以查看/管理
+    match /usage_logs/{document=**} {
       allow create: if isAuthenticated();
-      allow read: if isAdmin();
+      allow read, update, delete: if isAdmin();
     }
 
-    match /support_tickets/{ticketId} {
-      // Users can only create tickets, admin can read all
+    // 支援工單：任何人都可以建立，但只有管理員可以查看/管理
+    match /support_tickets/{document=**} {
       allow create: if isAuthenticated();
-      allow read: if isAdmin();
+      allow read, update, delete: if isAdmin();
     }
 
+    // 預設拒絕其他所有存取
     match /{path=**} {
       allow read, write: if false;
     }

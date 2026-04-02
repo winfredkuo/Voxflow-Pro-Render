@@ -14,10 +14,18 @@ export interface UsageLogData {
 
 export const logUsage = async (data: UsageLogData) => {
   try {
-    await addDoc(collection(db, 'usage_logs'), {
-      ...data,
+    const logData: any = {
+      uid: data.uid,
+      email: data.email,
+      fileName: data.fileName,
+      duration: data.duration,
+      version: data.version,
+      status: data.status,
       timestamp: new Date().toISOString()
-    });
+    };
+    if (data.error) logData.error = data.error;
+
+    await addDoc(collection(db, 'usage_logs'), logData);
   } catch (error) {
     console.error('Failed to log usage:', error);
     // We don't throw here to avoid interrupting the main flow
@@ -35,10 +43,16 @@ export interface SupportTicketData {
 
 export const submitSupportTicket = async (data: SupportTicketData) => {
   try {
-    await addDoc(collection(db, 'support_tickets'), {
-      ...data,
+    const ticketData: any = {
+      uid: data.uid,
+      email: data.email,
+      subject: data.subject,
+      message: data.message,
       timestamp: new Date().toISOString()
-    });
+    };
+    if (data.errorCode) ticketData.errorCode = data.errorCode;
+
+    await addDoc(collection(db, 'support_tickets'), ticketData);
     return true;
   } catch (error) {
     console.error('Failed to submit support ticket:', error);

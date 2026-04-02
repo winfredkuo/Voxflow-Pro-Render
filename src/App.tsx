@@ -671,6 +671,7 @@ function App() {
       handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
       throw err;
     }
+    
     if (!docSnap.exists()) {
       try {
         await setDoc(userDocRef, {
@@ -678,11 +679,22 @@ function App() {
           displayName: currentUser.displayName,
           photoURL: currentUser.photoURL,
           quota: 60,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          role: currentUser.email === 'theoder@gmail.com' ? 'admin' : 'user'
         });
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
         throw err;
+      }
+    } else {
+      // 如果文件存在但缺少 quota 欄位，補上初始額度
+      const data = docSnap.data();
+      if (data && data.quota === undefined) {
+        try {
+          await updateDoc(userDocRef, { quota: 60 });
+        } catch (err) {
+          console.error("Failed to fix missing quota:", err);
+        }
       }
     }
   };
