@@ -562,22 +562,23 @@ function NoticeBanner() {
   return (
     <div className="space-y-4 mb-8">
       {isInIframe && (
-        <div className="bg-amber-50/80 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800/60 rounded-2xl p-5 flex items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="bg-red-50 dark:bg-red-900/40 border-2 border-red-200 dark:border-red-800 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl animate-in fade-in slide-in-from-top-4 duration-500 ring-4 ring-red-500/10">
           <div className="flex items-center gap-4">
-            <div className="bg-amber-100 dark:bg-amber-800/60 text-amber-600 dark:text-amber-300 p-2 rounded-xl shrink-0">
-              <AlertCircle size={24} />
+            <div className="bg-red-100 dark:bg-red-800/60 text-red-600 dark:text-red-300 p-3 rounded-2xl shrink-0 animate-pulse">
+              <AlertCircle size={32} />
             </div>
-            <div className="text-sm text-amber-800 dark:text-amber-100">
-              <p className="font-black text-base text-amber-900 dark:text-amber-50">⚠️ 偵測到內嵌視窗模式</p>
-              <p className="opacity-90">為了確保 Google 登入與 Cookie 正常運作，建議點擊右側按鈕在新分頁開啟。</p>
+            <div className="text-sm text-red-800 dark:text-red-100">
+              <p className="font-black text-xl text-red-900 dark:text-red-50 mb-1">⚠️ 登入功能受限</p>
+              <p className="opacity-90 font-bold text-base">Google 登入不支援內嵌視窗。請務必點擊右側按鈕在新分頁開啟，否則無法登入。</p>
             </div>
           </div>
           <a 
             href={window.location.href} 
             target="_blank" 
             rel="noopener noreferrer"
-            className="px-4 py-2 bg-amber-600 text-white rounded-xl font-bold text-sm hover:bg-amber-700 transition-all whitespace-nowrap"
+            className="w-full md:w-auto px-8 py-4 bg-red-600 text-white rounded-2xl font-black text-lg hover:bg-red-700 transition-all whitespace-nowrap shadow-lg shadow-red-200 dark:shadow-none flex items-center justify-center gap-2"
           >
+            <RefreshCw size={20} />
             在新分頁開啟
           </a>
         </div>
@@ -700,7 +701,16 @@ function App() {
   };
 
   const handleLogin = async () => {
-    try { await signInWithGoogle(); } catch (error) { console.error(error); }
+    try { 
+      await signInWithGoogle(); 
+    } catch (error: any) { 
+      console.error("Login failed:", error);
+      if (window.self !== window.top) {
+        alert("⚠️ 登入失敗：偵測到您正在內嵌視窗中使用。請點擊右上角的「在新分頁開啟」按鈕，在新分頁中重新登入。");
+      } else {
+        alert(`登入失敗：${error.message || '未知錯誤'}`);
+      }
+    }
   };
 
   if (loading) {
