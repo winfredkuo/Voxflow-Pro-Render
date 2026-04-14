@@ -7,10 +7,6 @@ import { handleFirestoreError, OperationType } from './lib/firestore-errors';
 import { logUsage, submitSupportTicket } from './lib/usage';
 import { cn } from './lib/utils';
 import StableV1 from './versions/StableV1';
-import HistoryV2 from './versions/HistoryV2';
-import BilingualV3 from './versions/BilingualV3';
-
-type Version = 'V1' | 'V2' | 'V3';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
@@ -602,7 +598,6 @@ function NoticeBanner() {
 }
 
 function App() {
-  const [activeVersion, setActiveVersion] = useState<Version>('V3');
   const [user, setUser] = useState<User | null>(null);
   const [quota, setQuota] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -732,7 +727,7 @@ function App() {
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-none">
               <Sparkles className="text-white" size={18} />
             </div>
-            <span className="text-xl font-black tracking-tight">VoxFlow <span className="text-indigo-600 dark:text-indigo-400">Pro</span></span>
+            <span className="text-xl font-black tracking-tight">AI 專業語音轉錄 <span className="text-indigo-600 dark:text-indigo-400">Pro</span></span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -781,34 +776,20 @@ function App() {
         <NoticeBanner />
         {user ? (
           <div className="space-y-12">
-            <div className="flex justify-center">
-              <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-800 flex gap-1 transition-colors duration-300">
-                {(['V1', 'V3'] as Version[]).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setActiveVersion(v)}
-                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                      activeVersion === v ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    {v === 'V1' ? '單語辨識' : '雙語翻譯'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="min-h-[600px]">
-              {activeVersion === 'V1' && <StableV1 user={user} onOpenQuotaModal={() => setIsQuotaModalOpen(true)} onOpenSupport={openSupport} />}
-              {/* {activeVersion === 'V2' && <HistoryV2 user={user} onOpenQuotaModal={() => setIsQuotaModalOpen(true)} />} */}
-              {activeVersion === 'V3' && <BilingualV3 user={user} onOpenQuotaModal={() => setIsQuotaModalOpen(true)} onOpenSupport={openSupport} />}
+              <StableV1 
+                user={user} 
+                onOpenQuotaModal={() => setIsQuotaModalOpen(true)} 
+                onOpenSupport={openSupport} 
+              />
             </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 space-y-8 text-center">
             <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-3xl flex items-center justify-center shadow-inner"><UserIcon size={40} /></div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black text-slate-900 dark:text-slate-50">歡迎來到 VoxFlow Pro</h2>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">請先登入您的帳號，即可開始使用專業的 AI 語音轉錄與翻譯服務。</p>
+              <h2 className="text-3xl font-black text-slate-900 dark:text-slate-50">歡迎來到 AI 專業語音轉錄 Pro</h2>
+              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">請先登入您的帳號，即可開始使用專業的 AI 語音轉錄服務。</p>
             </div>
             <button onClick={handleLogin} className="flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 dark:shadow-none"><LogIn size={24} />使用 Google 帳號登入</button>
           </div>
@@ -816,7 +797,7 @@ function App() {
       </main>
 
       <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-slate-200/60 dark:border-slate-800 text-center transition-colors duration-300">
-        <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">© 2024 VoxFlow Pro Lab • Professional Transcription Ecosystem</p>
+        <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">© 2024 AI 專業語音轉錄 Pro • Professional Transcription Ecosystem</p>
       </footer>
 
       <QuotaModal isOpen={isQuotaModalOpen} onClose={() => setIsQuotaModalOpen(false)} />

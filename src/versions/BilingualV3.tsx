@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import * as OpenCC from 'opencc-js';
 import { Upload, FileAudio, Download, Loader2, CheckCircle2, AlertCircle, Trash2, Clock, Languages, History as HistoryIcon, AlignLeft, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
@@ -130,56 +130,21 @@ export default function BilingualV3({ user, onOpenQuotaModal, onOpenSupport }: {
 
       setProgress(`正在翻譯為 ${targetLang} (使用專業翻譯引擎)...`);
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      const model = "gemini-3-flash-preview";
-
-      const translationResponse = await ai.models.generateContent({
-        model: model,
-        contents: [{
-          role: "user",
-          parts: [
-            { text: `你是一位專業的影視字幕翻譯師。以下是音訊的轉錄內容（包含時間戳）。
-請將每一段內容翻譯為 ${targetLang}。
-
-轉錄內容：
-${JSON.stringify(transcriptionResult, null, 2)}
-
-核心規則：
-1. **信雅達**：翻譯必須自然流暢，符合影視字幕風格。
-2. **保持結構**：請回傳與輸入相同結構的 JSON 陣列，但增加 "original" 和 "translated" 欄位。
-3. **嚴格 JSON**：只回傳 JSON 陣列，不要有其他文字。` }
-          ]
-        }],
-        config: {
-          systemInstruction: `你是一個專業的影視字幕翻譯引擎。你必須精確地將轉錄內容翻譯為目標語言，並保持原有的時間戳結構。`,
-          responseMimeType: "application/json",
-          temperature: 0,
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                start: { type: Type.NUMBER },
-                end: { type: Type.NUMBER },
-                original: { type: Type.STRING },
-                translated: { type: Type.STRING }
-              },
-              required: ["start", "end", "original", "translated"]
-            }
-          }
-        }
+      const translateResponse = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          segments: transcriptionResult,
+          targetLang: targetLang
+        }),
       });
 
-      const textResult = translationResponse.text;
-      if (!textResult) throw new Error("翻譯失敗");
-      
-      let segments: any[];
-      try {
-        segments = JSON.parse(textResult);
-      } catch (e) {
-        console.error("Gemini 回傳了非 JSON 格式:", textResult);
-        throw new Error("翻譯結果格式錯誤，請重試。");
+      if (!translateResponse.ok) {
+        const errorData = await translateResponse.json();
+        throw new Error(errorData.error || "翻譯失敗");
       }
+
+      const segments = await translateResponse.json();
 
       try {
         await updateDoc(userDocRef, { quota: increment(-durationMinutes) });
